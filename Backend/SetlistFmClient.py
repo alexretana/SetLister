@@ -2,6 +2,10 @@ import requests
 from datetime import datetime
 import json
 
+class SetlistFmFailedResponseException(Exception):
+    def __init__(self, failedResponse):
+        super().__init__("ResponseFailedFromSetlistFm Error Code" + str(failedResponse.status_code) + ": " + failedResponse.text)
+
 class SetlistFmClient:
     apiKey = 'ZKHx6tWfpAPqP2vRjdeA9dL5DKi4HO_Dl7w5'
     headers = {
@@ -18,7 +22,7 @@ class SetlistFmClient:
         if response.status_code in range(200, 299):
             return self.returnFirstArtist(response.json())
         else:
-            return response.status_code
+            return SetlistFmFailedResponseException(response)
 
     def returnFirstArtist(self, responseJson):
         responseResults = responseJson.get('artist', [])
@@ -28,12 +32,12 @@ class SetlistFmClient:
         else:
             return {"artist": "", "mbid": "Error"}
     
-    def getSetlistForArtist(self, artistName):
+    def getSetlistForArtist(self, artistName, p=1):
         artistObject = self.searchArtists(artistName)
         mbid = artistObject["mbid"]
         if mbid != "Error":
             url = f'https://api.setlist.fm/rest/1.0/artist/{mbid}/setlists'
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, )
             if response.status_code in range(200, 299):
                 filteredSortedJson = {"setlist": self.filterAndSortJson(response.json())}
                 print(filteredSortedJson)
@@ -46,8 +50,8 @@ class SetlistFmClient:
     def filterAndSortJson(self, responseJson):
         return sorted((setlist for setlist 
                 in responseJson.get('setlist', []) 
-                if setlist.get('set', []) != []),
-                key= lambda setlist: datetime.fromisoformat(setlist['lastUpdated']),
+                if setlist.get('sets').get('set', []) != []),
+                key= lambda setlist: datetime.fromisoformat(setlist['lastUpdated'].split("+")[0]),
                 reverse= True
                 )
     
@@ -59,7 +63,7 @@ class SetlistFmClient:
                 "setlist": {
                     "eventDate": setlistInfo['eventDate'],
                     "venue": setlistInfo.get("venue", {"name":None}).get("name"),
-                    "set": setlistInfo.get("set", [])                    
+                    "set": setlistInfo.get("sets").get("set", [])                    
                 }
             }
 
